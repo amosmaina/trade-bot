@@ -1,6 +1,11 @@
 ccxt
 pandas
-pandas-ta
 numpy
 python-dotenv
 scipy
+MetaTrader5
+flask
+flask-cors
+requests
+beautifulsoup4
+openai

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Trading Terminal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; }
+        .card { background-color: #1e293b; border: 1px solid #334155; }
+        .status-up { color: #22c55e; }
+        .status-down { color: #ef4444; }
+        .btn-primary { background-color: #3b82f6; }
+        .btn-primary:hover { background-color: #2563eb; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-blue-500">Institutional AI Terminal</h1>
+                <p class="text-slate-400">Mathematically Optimized Trading & Analysis</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="flex bg-slate-800 rounded-lg p-1">
+                    <button onclick="setMode('DEMO')" id="demoBtn" class="px-4 py-2 rounded-md transition-all">DEMO</button>
+                    <button onclick="setMode('LIVE')" id="liveBtn" class="px-4 py-2 rounded-md transition-all">LIVE</button>
+                </div>
+                <button onclick="toggleSystem()" id="toggleBtn" class="btn-primary px-6 py-2 rounded-lg font-bold">START SYSTEM</button>
+            </div>
+        </div>
+
+        <!-- Main Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Analysis Panel -->
+            <div class="lg:col-span-2 space-y-6">
+                <div class="card p-6 rounded-xl">
+                    <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+                        <span>📊</span> Market Analysis
+                    </h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead class="text-slate-500 border-b border-slate-700">
+                                <tr>
+                                    <th class="pb-3">Symbol</th>
+                                    <th class="pb-3">Price</th>
+                                    <th class="pb-3">Regime</th>
+                                    <th class="pb-3">Bias</th>
+                                    <th class="pb-3">Sentiment</th>
+                                </tr>
+                            </thead>
+                            <tbody id="analysisTable">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Recent Trades -->
+                <div class="card p-6 rounded-xl">
+                    <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+                        <span>🚀</span> Trade Proposals
+                    </h2>
+                    <div id="tradesList" class="space-y-4">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="space-y-6">
+                <div class="card p-6 rounded-xl">
+                    <h2 class="text-xl font-bold mb-4">Account Overview</h2>
+                    <div class="space-y-4">
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Balance</span>
+                            <span class="font-mono">$10,000.00</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Daily Drawdown</span>
+                            <span class="text-green-500">0.00%</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Active Trades</span>
+                            <span>0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card p-6 rounded-xl bg-blue-900/20 border-blue-500/30">
+                    <h2 class="text-lg font-bold mb-2 text-blue-400">AI Reasoning Engine</h2>
+                    <p class="text-sm text-slate-300 italic" id="aiReasoning">
+                        System idle. Waiting for initialization...
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedMode = "DEMO";
+        let isRunning = false;
+
+        async function updateUI() {
+            try {
+                const res = await fetch('http://localhost:5001/api/state');
+                const data = await res.json();
+                
+                isRunning = data.is_running;
+                // If system is running, sync selectedMode with server mode
+                if (isRunning) {
+                    selectedMode = data.mode;
+                }
+
+                // Update Toggle Button
+                const toggleBtn = document.getElementById('toggleBtn');
+                toggleBtn.innerText = isRunning ? 'STOP SYSTEM' : 'START SYSTEM';
+                toggleBtn.className = isRunning ? 'bg-red-500 hover:bg-red-600 px-6 py-2 rounded-lg font-bold' : 'btn-primary px-6 py-2 rounded-lg font-bold';
+
+                // Update Mode Buttons (Highlight selectedMode)
+                document.getElementById('demoBtn').className = selectedMode === 'DEMO' ? 'px-4 py-2 rounded-md bg-blue-500 text-white font-bold' : 'px-4 py-2 rounded-md text-slate-400';
+                document.getElementById('liveBtn').className = selectedMode === 'LIVE' ? 'px-4 py-2 rounded-md bg-red-500 text-white font-bold' : 'px-4 py-2 rounded-md text-slate-400';
+
+                // Update Analysis Table
+                const tableBody = document.getElementById('analysisTable');
+                tableBody.innerHTML = '';
+                Object.entries(data.analysis).forEach(([symbol, info]) => {
+                    const row = `
+                        <tr class="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors">
+                            <td class="py-4 font-bold text-blue-400">${symbol}</td>
+                            <td class="py-4 font-mono">${info.price.toFixed(2)}</td>
+                            <td class="py-4"><span class="bg-slate-700 px-2 py-1 rounded text-xs">${info.regime}</span></td>
+                            <td class="py-4 ${info.bias === 'Bullish' ? 'text-green-500' : (info.bias === 'Bearish' ? 'text-red-500' : 'text-slate-400')}">${info.bias}</td>
+                            <td class="py-4">
+                                <span class="text-xs ${info.sentiment === 'CAUTION' ? 'text-yellow-500' : 'text-green-500'}">${info.sentiment}</span>
+                            </td>
+                        </tr>
+                    `;
+                    tableBody.innerHTML += row;
+                });
+
+                // Update Trades
+                const tradesList = document.getElementById('tradesList');
+                tradesList.innerHTML = data.trades.length === 0 ? '<p class="text-slate-500 text-center py-4">No active proposals</p>' : '';
+                data.trades.forEach(trade => {
+                    const tradeCard = `
+                        <div class="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg border border-slate-700">
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold text-lg">${trade.symbol}</span>
+                                    <span class="text-xs px-2 py-1 rounded ${trade.type === 'LONG' ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}">${trade.type}</span>
+                                </div>
+                                <div class="text-sm text-slate-400">${trade.strategy} | Confidence: ${trade.confidence}%</div>
+                            </div>
+                            <div class="flex gap-2">
+                                ${trade.status === 'PENDING' ? `
+                                    <button onclick="handleTrade('${trade.id}', 'ACCEPT')" class="bg-green-600 hover:bg-green-700 p-2 rounded text-xs font-bold">ACCEPT</button>
+                                    <button onclick="handleTrade('${trade.id}', 'REJECT')" class="bg-red-600 hover:bg-red-700 p-2 rounded text-xs font-bold">REJECT</button>
+                                ` : `<span class="text-xs font-bold ${trade.status === 'EXECUTED' ? 'text-green-500' : 'text-red-500'}">${trade.status}</span>`}
+                            </div>
+                        </div>
+                    `;
+                    tradesList.innerHTML += tradeCard;
+                });
+
+                // Update AI Reasoning
+                if (Object.keys(data.analysis).length > 0) {
+                    const firstSymbol = Object.keys(data.analysis)[0];
+                    const info = data.analysis[firstSymbol];
+                    document.getElementById('aiReasoning').innerHTML = `
+                        <div class="mb-2 font-bold text-blue-400">Analysis for ${firstSymbol}:</div>
+                        <div class="mb-4 text-xs text-slate-300">Regime: ${info.regime} | Bias: ${info.bias}</div>
+                        <div class="text-sm border-l-2 border-blue-500 pl-4 py-1">${info.ai_insight || 'AI processing...'}</div>
+                    `;
+                }
+
+            } catch (e) { console.error("Update failed", e); }
+        }
+
+        async function toggleSystem() {
+            await fetch('http://localhost:5001/api/toggle', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ mode: selectedMode })
+            });
+            updateUI();
+        }
+
+        async function setMode(mode) {
+            if (isRunning) {
+                alert("Please STOP the system before switching modes.");
+                return;
+            }
+            if (mode === 'LIVE') {
+                const pass = prompt("Enter LIVE password to confirm institutional credentials:");
+                if (pass !== 'INSTITUTIONAL_2026') {
+                    alert("Invalid credential. Access denied.");
+                    return;
+                }
+            }
+            selectedMode = mode;
+            updateUI();
+        }
+
+        async function handleTrade(id, action) {
+            await fetch('http://localhost:5001/api/trade/action', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ id, action })
+            });
+            updateUI();
+        }
+
+        setInterval(updateUI, 2000);
+        updateUI();
+    </script>
+</body>
+</html>

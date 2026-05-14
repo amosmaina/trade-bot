@@ -1,4 +1,4 @@
-import pandas_ta as ta
+from src.utils.indicators import Indicators
 import pandas as pd
 
 class MarketRegime:
@@ -16,8 +16,8 @@ class MarketRegime:
         }
 
         # Analyze 1D for Macro Trend (Layer 2)
-        ema200_1d = ta.ema(df_1d['close'], length=200)
-        ema50_1d = ta.ema(df_1d['close'], length=50)
+        ema200_1d = Indicators.ema(df_1d['close'], 200)
+        ema50_1d = Indicators.ema(df_1d['close'], 50)
         
         current_price_1d = df_1d['close'].iloc[-1]
         
@@ -29,8 +29,8 @@ class MarketRegime:
             results['bias'] = 'Ranging'
 
         # Analyze 1H for Market Regime (Layer 1)
-        adx = ta.adx(df_1h['high'], df_1h['low'], df_1h['close'])
-        current_adx = adx['ADX_14'].iloc[-1]
+        adx = Indicators.adx(df_1h, 14)
+        current_adx = adx.iloc[-1]
         
         if current_adx > 25:
             results['regime'] = 'Trending' if results['bias'] != 'Ranging' else 'Volatile'
@@ -40,7 +40,6 @@ class MarketRegime:
             results['regime'] = 'Accumulating/Distributing'
 
         # Institutional Concepts (Layer 2)
-        # Check for Premium/Discount zones (Fib 0.5 of 1D range)
         low_1d = df_1d['low'].tail(20).min()
         high_1d = df_1d['high'].tail(20).max()
         mid_point = (high_1d + low_1d) / 2
