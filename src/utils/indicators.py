@@ -95,3 +95,45 @@ class Indicators:
         sweep_low = current_low < recent_min and df['close'].iloc[-1] > recent_min
         
         return sweep_high, sweep_low
+
+    @staticmethod
+    def calculate_ofi(df, period=5):
+        """
+        Order Flow Imbalance (OFI)
+        Calculates the net imbalance between buying and selling pressure based on price and volume.
+        """
+        delta_v = []
+        for i in range(1, len(df)):
+            if df['close'].iloc[i] > df['close'].iloc[i-1]:
+                # Bullish imbalance: volume contributed to price increase
+                delta_v.append(df['volume'].iloc[i])
+            elif df['close'].iloc[i] < df['close'].iloc[i-1]:
+                # Bearish imbalance: volume contributed to price decrease
+                delta_v.append(-df['volume'].iloc[i])
+            else:
+                delta_v.append(0)
+        
+        ofi = pd.Series(delta_v).rolling(window=period).mean()
+        return ofi
+
+    @staticmethod
+    def detect_orderflow_signals(df):
+        """
+        Detect 4 Core Orderflow Signals:
+        1. Momentum (Increasing volume with price move)
+        2. Absorption (High volume but price fails to break levels)
+        3. Exhaustion (Decreasing volume as price hits extremes)
+        4. Imbalance (Significant OFI)
+        """
+        vol_sma = df['volume'].rolling(window=20).mean()
+        curr_vol = df['volume'].iloc[-1]
+        curr_close = df['close'].iloc[-1]
+        prev_close = df['close'].iloc[-2]
+        
+        signals = {
+            'momentum': curr_vol > vol_sma.iloc[-1] * 1.5 and abs(curr_close - prev_close) > 0,
+            'absorption': curr_vol > vol_sma.iloc[-1] * 2 and abs(curr_close - prev_close) < (df['high'].iloc[-1] - df['low'].iloc[-1]) * 0.2,
+            'exhaustion': curr_vol < vol_sma.iloc[-1] * 0.5,
+            'imbalance': abs(Indicators.calculate_ofi(df).iloc[-1]) > vol_sma.iloc[-1] * 0.5
+        }
+        return signals

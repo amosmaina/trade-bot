@@ -122,27 +122,34 @@ class SMCStrategy(BaseStrategy):
 
     def check_conditions(self, df):
         """
-        SMC Advanced: Liquidity Sweeps + FVG + BOS
+        SMC Advanced: Liquidity Sweeps + FVG + BOS + Order Flow Imbalance (OFI)
+        Includes 4 Orderflow Signals: Momentum, Absorption, Exhaustion, Imbalance
         """
         # 1. Detect Liquidity Sweeps
         sweep_high, sweep_low = Indicators.detect_liquidity_sweeps(df)
         
-        # 2. Find recent FVG
-        fvgs = Indicators.find_fvg(df.tail(10))
+        # 2. Find recent FVG (Imbalance)
+        fvgs = Indicators.find_fvg(df.tail(15))
         has_bullish_fvg = any(f['type'] == 'Bullish' for f in fvgs)
         has_bearish_fvg = any(f['type'] == 'Bearish' for f in fvgs)
         
-        # 3. BOS (Break of Structure)
+        # 3. Order Flow Signals
+        of_signals = Indicators.detect_orderflow_signals(df)
+        ofi = Indicators.calculate_ofi(df).iloc[-1]
+        
+        # 4. BOS (Break of Structure)
         recent_high = df['high'].iloc[-20:-1].max()
         recent_low = df['low'].iloc[-20:-1].min()
         current_close = df['close'].iloc[-1]
         
-        # Long: Sweep low + Bullish FVG or Bullish BOS
-        if (sweep_low or current_close > recent_high) and has_bullish_fvg:
-            return 'LONG'
+        # Long: Sweep low + Bullish FVG/OFI + (Absorption or Momentum)
+        if (sweep_low or current_close > recent_high) and (has_bullish_fvg or ofi > 0):
+            if of_signals['momentum'] or of_signals['absorption'] or of_signals['imbalance']:
+                return 'LONG'
             
-        # Short: Sweep high + Bearish FVG or Bearish BOS
-        if (sweep_high or current_close < recent_low) and has_bearish_fvg:
-            return 'SHORT'
+        # Short: Sweep high + Bearish FVG/OFI + (Absorption or Momentum)
+        if (sweep_high or current_close < recent_low) and (has_bearish_fvg or ofi < 0):
+            if of_signals['momentum'] or of_signals['absorption'] or of_signals['imbalance']:
+                return 'SHORT'
             
         return 'NO_TRADE'

@@ -36,6 +36,50 @@
             
             <!-- Analysis Panel -->
             <div class="lg:col-span-2 space-y-6">
+                <!-- Asset Detail View (New) -->
+                <div id="assetDetailPanel" class="card p-6 rounded-xl hidden border-blue-500/50 bg-blue-900/10">
+                    <div class="flex justify-between items-start mb-4">
+                        <h2 id="detailSymbol" class="text-2xl font-bold text-blue-400">SELECT A PAIR</h2>
+                        <button onclick="closeDetail()" class="text-slate-400 hover:text-white">✕</button>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                        <div class="bg-slate-800/50 p-3 rounded-lg">
+                            <div class="text-xs text-slate-400 uppercase">Current Price</div>
+                            <div id="detailPrice" class="text-lg font-mono">--</div>
+                        </div>
+                        <div class="bg-slate-800/50 p-3 rounded-lg">
+                            <div class="text-xs text-slate-400 uppercase">Regime</div>
+                            <div id="detailRegime" class="text-lg">--</div>
+                        </div>
+                        <div class="bg-slate-800/50 p-3 rounded-lg">
+                            <div class="text-xs text-slate-400 uppercase">HTF Bias</div>
+                            <div id="detailBias" class="text-lg">--</div>
+                        </div>
+                        <div class="bg-slate-800/50 p-3 rounded-lg">
+                            <div class="text-xs text-slate-400 uppercase">COT Weekly</div>
+                            <div id="detailCOT" class="text-lg font-bold">--</div>
+                        </div>
+                        <div class="bg-slate-800/50 p-3 rounded-lg">
+                            <div class="text-xs text-slate-400 uppercase">Zone</div>
+                            <div id="detailZone" class="text-lg">--</div>
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-400 uppercase mb-1">Institutional AI Insight</h3>
+                            <div id="detailAI" class="text-sm border-l-2 border-blue-500 pl-4 py-2 bg-blue-500/5">
+                                Select a pair to view deep-dive analysis.
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-400 uppercase mb-1">News & Sentiment</h3>
+                            <div id="detailSentiment" class="text-sm p-3 bg-slate-800/50 rounded-lg">
+                                --
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="card p-6 rounded-xl">
                     <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
                         <span>📊</span> Market Analysis
@@ -48,6 +92,7 @@
                                     <th class="pb-3">Price</th>
                                     <th class="pb-3">Regime</th>
                                     <th class="pb-3">Bias</th>
+                                    <th class="pb-3">COT (Weekly)</th>
                                     <th class="pb-3">Sentiment</th>
                                 </tr>
                             </thead>
@@ -102,11 +147,14 @@
     <script>
         let selectedMode = "DEMO";
         let isRunning = false;
+        let selectedSymbol = null;
+        let globalData = null;
 
         async function updateUI() {
             try {
                 const res = await fetch('http://localhost:5001/api/state');
                 const data = await res.json();
+                globalData = data;
                 
                 isRunning = data.is_running;
                 // If system is running, sync selectedMode with server mode
@@ -128,22 +176,37 @@
                 tableBody.innerHTML = '';
                 Object.entries(data.analysis).forEach(([symbol, info]) => {
                     const row = `
-                        <tr class="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors">
+                        <tr onclick="showDetail('${symbol}')" class="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors cursor-pointer ${selectedSymbol === symbol ? 'bg-blue-500/10' : ''}">
                             <td class="py-4 font-bold text-blue-400">${symbol}</td>
-                            <td class="py-4 font-mono">${info.price.toFixed(2)}</td>
-                            <td class="py-4"><span class="bg-slate-700 px-2 py-1 rounded text-xs">${info.regime}</span></td>
-                            <td class="py-4 ${info.bias === 'Bullish' ? 'text-green-500' : (info.bias === 'Bearish' ? 'text-red-500' : 'text-slate-400')}">${info.bias}</td>
+                            <td class="py-4 font-mono">${info.price ? info.price.toFixed(2) : '---'}</td>
+                            <td class="py-4"><span class="bg-slate-700 px-2 py-1 rounded text-xs">${info.regime || 'SCANNING'}</span></td>
+                            <td class="py-4 ${info.bias === 'Bullish' ? 'text-green-500' : (info.bias === 'Bearish' ? 'text-red-500' : 'text-slate-400')}">${info.bias || '...'}</td>
                             <td class="py-4">
-                                <span class="text-xs ${info.sentiment === 'CAUTION' ? 'text-yellow-500' : 'text-green-500'}">${info.sentiment}</span>
+                                <span class="text-xs px-2 py-1 rounded ${info.cot_bias === 'Bullish' ? 'bg-green-500/20 text-green-500' : (info.cot_bias === 'Bearish' ? 'bg-red-500/20 text-red-500' : 'bg-slate-700 text-slate-400')}">
+                                    ${info.cot_bias || 'WAITING'}
+                                </span>
+                            </td>
+                            <td class="py-4">
+                                <span class="text-xs ${info.sentiment === 'CAUTION' ? 'text-yellow-500' : 'text-green-500'}">${info.sentiment || 'STABLE'}</span>
                             </td>
                         </tr>
                     `;
                     tableBody.innerHTML += row;
                 });
 
+                // Update Asset Detail if selected
+                if (selectedSymbol && data.analysis[selectedSymbol]) {
+                    updateDetail(selectedSymbol, data.analysis[selectedSymbol]);
+                }
+
                 // Update Trades
                 const tradesList = document.getElementById('tradesList');
-                tradesList.innerHTML = data.trades.length === 0 ? '<p class="text-slate-500 text-center py-4">No active proposals</p>' : '';
+                tradesList.innerHTML = data.trades.length === 0 ? `
+                    <div class="text-center py-8">
+                        <p class="text-slate-500 mb-2">No institutional setups detected yet.</p>
+                        <p class="text-xs text-slate-600">The [ACCEPT/REJECT] buttons will appear here once the AI confirms a high-probability entry.</p>
+                    </div>
+                ` : '';
                 data.trades.forEach(trade => {
                     const tradeCard = `
                         <div class="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg border border-slate-700">
@@ -210,6 +273,44 @@
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ id, action })
             });
+            updateUI();
+        }
+
+        // Detail View Functions
+        function showDetail(symbol) {
+            selectedSymbol = symbol;
+            const info = globalData.analysis[symbol];
+            if (!info) return;
+
+            document.getElementById('assetDetailPanel').classList.remove('hidden');
+            updateDetail(symbol, info);
+            updateUI(); // Refresh table highlight
+        }
+
+        function updateDetail(symbol, info) {
+            document.getElementById('detailSymbol').innerText = symbol;
+            document.getElementById('detailPrice').innerText = info.price.toFixed(2);
+            document.getElementById('detailRegime').innerText = info.regime;
+            document.getElementById('detailBias').innerText = info.bias;
+            document.getElementById('detailCOT').innerText = info.cot_bias;
+            document.getElementById('detailCOT').className = `text-lg font-bold ${info.cot_bias === 'Bullish' ? 'text-green-500' : (info.cot_bias === 'Bearish' ? 'text-red-500' : 'text-slate-400')}`;
+            document.getElementById('detailZone').innerText = info.zone;
+            document.getElementById('detailAI').innerHTML = info.ai_insight || 'AI processing...';
+            document.getElementById('detailSentiment').innerHTML = `
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="${info.sentiment === 'CAUTION' ? 'text-yellow-500' : 'text-green-500'} font-bold">${info.sentiment}</span>
+                </div>
+                <div class="text-xs text-slate-400">${info.sentiment_reason}</div>
+            `;
+
+            // Style detail elements
+            const biasEl = document.getElementById('detailBias');
+            biasEl.className = `text-lg font-bold ${info.bias === 'Bullish' ? 'text-green-500' : (info.bias === 'Bearish' ? 'text-red-500' : 'text-slate-400')}`;
+        }
+
+        function closeDetail() {
+            selectedSymbol = null;
+            document.getElementById('assetDetailPanel').classList.add('hidden');
             updateUI();
         }
 
